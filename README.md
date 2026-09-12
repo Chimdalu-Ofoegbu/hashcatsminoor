@@ -1,37 +1,64 @@
 # hashcatsminoor
 
-Go/no-go check for mining [Hashcats](https://hashcats.fun) (16,384 proof-of-work
-pixel cats on Robinhood Chain, chain id 4663) on rented cloud GPUs.
+Clean-room tooling to mine [Hashcats](https://hashcats.fun), the 16,384
+proof-of-work pixel cats on Robinhood Chain (chain id 4663), on rented GPUs
+without ever putting a wallet key on the rented machine.
 
-`worth_it.py` reads the live contract (`0xCA75DF55Cc9C476DB27a7375D1fc8E794cf80721`)
-with one Multicall3 call and prints, for the address you would mine with:
+| Piece | Runs on | What it does |
+|---|---|---|
+| `worth_it.py` | you | Reads the live contract and says whether renting pays, once or as a trend |
+| `coordinator.py` | you | Polls the chain, feeds jobs to the GPU host, verifies candidates, signs and submits mints |
+| `remote_agent.py` | GPU host | Standard-library only; one worker per GPU, reports candidates and hashrate |
+| `miner/worker.cu` | GPU host | CUDA Keccak-256 search |
+| `miner/cpu_worker.cpp` | anywhere | Same core and protocol on CPU, used by the tests and dry runs |
+| `scripts/remote_setup.sh` | GPU host | Builds the worker for the installed card and runs the self-test |
+| `scripts/gpu_selftest.py` | GPU host | Checks the worker against a pure-Python Keccak and benchmarks it |
+| `pow.py`, `chain.py` | you | Proof-of-work reference and RPC helpers |
 
-- cats minted so far and cats left
-- the current entry price
-- the current target as expected hashes per cat
-- expected minutes per cat at your hashrate
-- compute, mint, and gas cost per cat versus the resale price you expect
-- a one-line verdict
+The work is `keccak256(address[20] || nonce[32] || prevWork[32] || anchor[32]) < targetFor(address)`,
+submitted as `mine(nonce, anchorBlock)` with the epoch's entry price as value.
+Contract: `0xCA75DF55Cc9C476DB27a7375D1fc8E794cf80721`.
 
-It is read-only. It never signs or broadcasts anything.
+## Quick start
 
-## Run
+Read [docs/cloud-runbook.md](docs/cloud-runbook.md). In short:
 
 ```sh
-python -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-python worth_it.py --address 0xYourMiningAddress --ghs 26 --usd-per-hour 2.40 \
-    --eth-usd 2500 --sale-eth 0.0693 --fee-pct 5.5
+python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+python worth_it.py --address 0xYou --ghs 26 --usd-per-hour 2.40      # gate
+# on the rented box: git clone, then bash scripts/remote_setup.sh
+cp .env.example .env && set -a; . ./.env; set +a
+python coordinator.py            # dry run over SSH
+python coordinator.py --live     # spends ETH, within MAX_PRICE_ETH / MAX_SPEND_ETH / MAX_HOURS
 ```
 
-`--ghs` is your total hashrate. The community CUDA miner measured about 6.3 to
-6.6 GH/s per RTX 5090, so a four-card box is about 26 GH/s. `--sale-eth` should
-be the price you can actually sell into (the top collection offer is the honest
-number), not the floor.
+## Safety properties
 
-## How the difficulty behaves
+- The private key is read only by `coordinator.py` on your machine. The GPU host
+  receives public work (address, prevWork, anchor, target) and nothing else, not
+  even the RPC URL.
+- Every candidate is re-verified locally before a transaction is built, and a
+  worker that produces an invalid candidate halts the run.
+- Hard stops: entry-price ceiling, total spend, wall clock, revert count, and a
+  pending-transaction marker that blocks restarts until you reconcile it.
+- Default mode is a dry run; `--live` is explicit.
 
-From the official docs, four rules set the work per cat:
+## Tests
+
+```sh
+python -m pytest -q
+```
+
+The suite builds the CPU worker with `g++` and checks it against the Python
+reference for random inputs, drives the agent and the coordinator end to end
+against an in-process fake of the contract (including signed transactions,
+receipts, reverts and the streak rule), and validates the self-test script.
+
+Not covered here: compiling and launching `miner/worker.cu`. The CUDA file
+shares its Keccak core and message layout with the tested CPU worker, so run
+`scripts/gpu_selftest.py` on the GPU host before mining with it.
+
+## Difficulty, from the official docs
 
 1. A floor of `2^(26 + epoch)` hashes so an idle network still pays something.
 2. Every 8 cats the contract retargets toward one cat per 10 seconds, up to 4x
@@ -40,23 +67,6 @@ From the official docs, four rules set the work per cat:
    one level every 10 seconds.
 4. The work ramps at the end of the collection.
 
-Rule 2 caps the whole network at roughly 8,640 cats a day, so your yield is your
-share of network hashrate, not your raw hashrate. Re-run the check after every
-few mints; the target moves.
-
-## Mining itself
-
-Do not run the browser miner on a rented box. Use the open-source
-[hashcats-cuda-miner](https://github.com/asbryx/hashcats-cuda-miner): its
-coordinator keeps the wallet key on your own machine and ships only a worker
-script to the GPU host over SSH. Rebuild the kernel for your card
-(`-arch=sm_120` for RTX 5090, `sm_89` for RTX 4090, `sm_86` for RTX 3090).
-
-## Tests
-
-```sh
-python -m pytest -q
-```
-
-The tests mock the RPC; the script was not run against the live chain from the
-environment it was written in.
+Rule 2 caps the network near 8,640 cats a day, so yield is your share of the
+network's hashrate. `worth_it.py --watch` shows the observed pace and your
+expected share, cats per hour, and profit per hour.
