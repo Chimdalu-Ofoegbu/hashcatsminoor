@@ -36,6 +36,14 @@ printf '#pragma once\n' > "$ROOT/include/curand_mtgp32_kernel.h"
 
 CLANG="${CLANG:-clang++}"
 COMMON=(-x cuda --cuda-path="$ROOT" -Wno-unknown-cuda-version -std=c++17 -O2 -Wall -Werror -I "$ROOT/include")
+# libstdc++ 14 declares __float128 inside <limits>, which clang's CUDA device
+# pass rejects. Prefer the gcc 13 (or 12) headers when they are installed.
+for v in 13 12; do
+  if [ -d "/usr/lib/gcc/x86_64-linux-gnu/$v" ]; then
+    COMMON+=("--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/$v")
+    break
+  fi
+done
 cd miner
 echo "== device code for sm_89 (RTX 4090) =="
 "$CLANG" "${COMMON[@]}" --cuda-device-only --cuda-gpu-arch=sm_89 -c worker.cu -o "$WORK/worker_sm89.cubin"

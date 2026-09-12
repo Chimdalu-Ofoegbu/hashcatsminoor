@@ -20,8 +20,10 @@ def main(argv=None):
         print(f"key file already exists: {path}")
         print(f"address: {account.address}")
         return 0
+    parent_created = not path.parent.exists()
     path.parent.mkdir(parents=True, exist_ok=True)
-    os.chmod(path.parent, 0o700)
+    if parent_created:
+        os.chmod(path.parent, 0o700)  # lock down a directory we made, never one that already existed
     account = Account.create()
     with open(path, "w") as f:
         os.chmod(path, 0o600)

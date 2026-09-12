@@ -34,6 +34,7 @@ from eth_utils import keccak
 
 import chain
 import pow as hpow
+from remote import shell_path
 
 HERE = Path(__file__).resolve().parent
 GAS_LIMIT = 400_000
@@ -84,11 +85,11 @@ class Config:
         if not self.ssh_target:
             raise RuntimeError("set SSH_TARGET (user@host) or use --local-cpu")
         worker = "./miner/cpu_worker --cpu" if self.cpu else "./miner/worker"
-        remote = (f"cd {shlex.quote(self.remote_dir)} && {shlex.quote(self.remote_python)} -u remote_agent.py "
+        remote = (f"cd {shell_path(self.remote_dir)} && {shlex.quote(self.remote_python)} -u remote_agent.py "
                   f"--worker {worker} --gpus {self.gpus} --batch-log2 {batch} "
                   f"--stats-seconds {self.stats_seconds}")
         cmd = ["ssh", "-p", str(self.ssh_port), "-o", "BatchMode=yes", "-o", "ServerAliveInterval=15"]
-        cmd += shlex.split(self.ssh_opts)
+        cmd += [os.path.expanduser(t) for t in shlex.split(self.ssh_opts)]
         cmd += [self.ssh_target, remote]
         return cmd
 
@@ -178,8 +179,8 @@ class Coordinator:
 
     # ---- jobs ----
     def refresh_job(self, snap):
-        key = (snap["prev"], snap["anchor_block"])
-        if self.job and (self.job["prev"], self.job["anchor_block"]) == key:
+        key = (snap["prev"], snap["anchor_block"], snap["target"])
+        if self.job and (self.job["prev"], self.job["anchor_block"], self.job["target"]) == key:
             return
         self.job_id += 1
         self.job = {"id": self.job_id, **snap}
@@ -205,6 +206,10 @@ class Coordinator:
             return
         if self.chain.prev_work() != job["prev"]:
             self.log("stale_candidate", job=job["id"], reason="prevWork moved")
+            return
+        live_target = self.chain.target_for(self.address)
+        if not hpow.verify(self.address, nonce, job["prev"], job["anchor"], live_target):
+            self.log("stale_candidate", job=job["id"], reason="target moved")
             return
         price = self.chain.mint_price()
         if price > self.cfg.max_price_wei:
@@ -261,8 +266,14 @@ class Coordinator:
         if not receipt:
             self.stop("receipt unresolved; pending.json kept for manual reconciliation")
             return
-        gas_cost = int(receipt["gasUsed"], 16) * int(receipt["effectiveGasPrice"], 16)
-        if int(receipt["status"], 16) == 1:
+        status = receipt.get("status")
+        if status is None:
+            self.stop("receipt has no status field; pending.json kept for manual reconciliation")
+            return
+        gas_used = int(receipt.get("gasUsed") or "0x0", 16)
+        effective = receipt.get("effectiveGasPrice") or hex(tx["gasPrice"])
+        gas_cost = gas_used * int(effective, 16)
+        if int(status, 16) == 1:
             ids = chain.minted_token_ids(receipt, self.cfg.collection, self.address)
             owner_ok = len(ids) == 1 and self.chain.owner_of(ids[0]).lower() == self.address.lower()
             if not owner_ok:

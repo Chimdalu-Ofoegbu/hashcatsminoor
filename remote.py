@@ -1,6 +1,7 @@
 """Where the GPU work runs: a box over SSH, or this machine."""
 from __future__ import annotations
 
+import os
 import shlex
 import shutil
 import subprocess
@@ -11,6 +12,16 @@ from pathlib import Path
 REMOTE_FILES = ["remote_agent.py", "miner/Makefile", "miner/keccak.h", "miner/worker_common.h",
                 "miner/cpu_worker.cpp", "miner/worker.cu", "scripts/remote_setup.sh",
                 "scripts/gpu_selftest.py", "scripts/purekeccak.py"]
+
+
+def shell_path(path: str) -> str:
+    """Quote a path for a remote POSIX shell while letting a leading ~ expand there."""
+    if path == "~":
+        return "~"
+    if path.startswith("~/"):
+        rest = path[2:]
+        return "~/" + shlex.quote(rest) if rest else "~/"
+    return shlex.quote(path)
 
 
 class Remote:
@@ -30,7 +41,8 @@ class Remote:
 class SshRemote(Remote):
     def __init__(self, host: str, port: int = 22, user: str = "root", key_file: str | None = None,
                  extra_opts: str = "", log=print):
-        self.host, self.port, self.user, self.key_file, self.extra_opts, self.log = host, port, user, key_file, extra_opts, log
+        self.host, self.port, self.user, self.extra_opts, self.log = host, port, user, extra_opts, log
+        self.key_file = os.path.expanduser(key_file) if key_file else None
 
     @property
     def target(self) -> str:
@@ -66,7 +78,7 @@ class SshRemote(Remote):
     def upload_repo(self, root: Path, dest: str) -> None:
         self.log(f"upload {len(REMOTE_FILES)} files to {self.target}:{dest}")
         tar = subprocess.Popen(["tar", "czf", "-", "-C", str(root), *REMOTE_FILES], stdout=subprocess.PIPE)
-        remote = f"mkdir -p {shlex.quote(dest)} && tar xzf - -C {shlex.quote(dest)}"
+        remote = f"mkdir -p {shell_path(dest)} && tar xzf - -C {shell_path(dest)}"
         proc = subprocess.run(self.ssh_cmd(remote), stdin=tar.stdout, capture_output=True, text=True, timeout=300)
         tar.wait()
         if tar.returncode != 0 or proc.returncode != 0:

@@ -69,7 +69,7 @@ class Autopilot:
         self.min_cuda = float(env("VAST_MIN_CUDA", default_cuda))
         self.query_extra = env("VAST_QUERY_EXTRA", "")
         self.label = env("VAST_LABEL", "hashcats")
-        self.ssh_key_file = env("SSH_KEY_FILE", os.path.expanduser("~/.ssh/id_ed25519"))
+        self.ssh_key_file = os.path.expanduser(env("SSH_KEY_FILE", "~/.ssh/id_ed25519"))
         self.remote_dir = env("REMOTE_DIR", "~/hashcatsminoor")
         if self.provider == "local":
             self.remote_dir = str(ROOT)
@@ -200,11 +200,12 @@ class Autopilot:
 
     def setup(self, remote):
         remote.upload_repo(ROOT, self.remote_dir)
+        where = remote_mod.shell_path(self.remote_dir)
         if self.args.cpu:
-            cmd = (f"cd {self.remote_dir} && make -C miner cpu_worker && python3 scripts/gpu_selftest.py --cpu "
+            cmd = (f"cd {where} && make -C miner cpu_worker && python3 scripts/gpu_selftest.py --cpu "
                    f"--worker miner/cpu_worker --seconds 1 --batch-log2 14")
         else:
-            cmd = f"cd {self.remote_dir} && bash scripts/remote_setup.sh"
+            cmd = f"cd {where} && bash scripts/remote_setup.sh"
         rc, out = remote.run(cmd, timeout=1800)
         for line in out.strip().splitlines()[-25:]:
             self.say("  | " + line)
