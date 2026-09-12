@@ -70,9 +70,11 @@ reference for random inputs, drives the agent and the coordinator end to end
 against an in-process fake of the contract (including signed transactions,
 receipts, reverts and the streak rule), and validates the self-test script.
 
-Not covered here: compiling and launching `miner/worker.cu`. The CUDA file
-shares its Keccak core and message layout with the tested CPU worker, so run
-`scripts/gpu_selftest.py` on the GPU host before mining with it.
+`miner/worker.cu` is compile-checked without a GPU by
+`scripts/cuda_compile_check.sh`: clang's CUDA front end builds the device code
+for sm_89 and the host code, and NVIDIA's `ptxas` assembles the PTX for sm_120.
+What no test here can do is launch the kernel, so run `scripts/gpu_selftest.py`
+on the GPU host before mining with it.
 
 ## Difficulty, from the official docs
 

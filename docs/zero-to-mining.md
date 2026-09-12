@@ -233,6 +233,8 @@ it cannot spend what is not there.
 Tested here, offline: the Keccak core against a reference, the CPU worker, the
 agent, the coordinator's signing and receipt handling against a contract fake,
 the vast.ai wrapper against a fake of the CLI, and the autopilot end to end in
-local and rehearsal modes. Not tested here: compiling and running the CUDA
-worker on a real GPU, and the vast.ai commands against the live service. The
-rehearsal in 2.2 is where both get proven, for about a dollar.
+local and rehearsal modes. The CUDA worker was compiled for the RTX 4090
+target and assembled for the RTX 5090 target with clang and NVIDIA's own
+assembler (`scripts/cuda_compile_check.sh`), but it has never been launched on
+a GPU, and the vast.ai commands have not been run against the live service.
+The rehearsal in 2.2 is where both get proven, for about a dollar.

@@ -6,3 +6,4 @@ state/
 .env
 miner/cpu_worker
 miner/worker
+.cuda-check/
