@@ -94,6 +94,18 @@ class FakeChain:
         gas_used = 150_000
         logs = []
         status = 0
+        # a plain value transfer (no calldata) to any non-collection address
+        if not data and to.hex().lower() != chain.COLLECTION[2:].lower():
+            recipient = "0x" + to.hex()
+            transfer_gas = 21_000
+            self.balances[sender.lower()] = self.balances.get(sender.lower(), 0) - value - transfer_gas * gas_price
+            self.balances[recipient.lower()] = self.balances.get(recipient.lower(), 0) + value
+            self.block += 1
+            txhash = "0x" + keccak(raw).hex()
+            self.receipts[txhash] = {"status": "0x1", "gasUsed": hex(transfer_gas),
+                                     "effectiveGasPrice": hex(gas_price), "logs": [],
+                                     "transactionHash": txhash, "blockNumber": hex(self.block)}
+            return txhash
         ok = (
             to.hex().lower() == chain.COLLECTION[2:].lower()
             and data[:4] == MINE_SELECTOR
