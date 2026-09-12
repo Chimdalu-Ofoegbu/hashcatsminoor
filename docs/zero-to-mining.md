@@ -126,6 +126,7 @@ Edit `.env`. The lines that matter:
 | `MAX_PRICE_ETH` | `0.01`, the current entry price; raise only on purpose |
 | `TARGET_MINTS`, `MAX_SPEND_ETH`, `MAX_HOURS` | `3`, `0.05`, `2` for a trial |
 | `SALE_ETH` | the current top collection offer on OpenSea, not the floor |
+| `OPENSEA_API_KEY` | optional; a free key from opensea.io makes the gate read the live top offer instead |
 | `MIN_PROFIT_PER_HOUR` | `5` means: rent only if the numbers say $5 per hour or better |
 
 Load it into your shell every time you open a new terminal:

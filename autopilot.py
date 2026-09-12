@@ -49,6 +49,21 @@ def fetch_eth_usd(timeout: float = 10) -> float:
     return float(reply["ethereum"]["usd"])
 
 
+OPENSEA_SLUG = "hash-cats"
+
+
+def fetch_top_offer_eth(api_key: str, slug: str = OPENSEA_SLUG, timeout: float = 10) -> float:
+    """Best live collection offer on OpenSea in ETH-equivalent, or 0.0 if none is listed."""
+    reply = requests.get(f"https://api.opensea.io/api/v2/offers/collection/{slug}",
+                         headers={"accept": "application/json", "x-api-key": api_key}, timeout=timeout).json()
+    best = 0
+    for offer in reply.get("offers", []):
+        price = offer.get("price") or {}
+        if price.get("currency", "").upper() in ("WETH", "ETH"):
+            best = max(best, int(price.get("value", 0)))
+    return best / 1e18
+
+
 class Abort(Exception):
     pass
 
@@ -133,6 +148,18 @@ class Autopilot:
             raise Abort(f"fund the wallet first: {balance:.4f} ETH < {need:.4f} ETH")
         if self.eth_usd is None:
             self.eth_usd = fetch_eth_usd()
+        api_key = env("OPENSEA_API_KEY")
+        if api_key:
+            try:
+                live = fetch_top_offer_eth(api_key)
+            except Exception as exc:  # noqa: BLE001 - fall back to the configured price
+                live = 0.0
+                self.say(f"OpenSea offer lookup failed ({type(exc).__name__}); using SALE_ETH={self.sale_eth}")
+            if live > 0:
+                self.say(f"OpenSea top collection offer {live:.4f} ETH (configured SALE_ETH was {self.sale_eth})")
+                self.sale_eth = live
+            else:
+                self.say(f"no OpenSea collection offer found; using SALE_ETH={self.sale_eth}")
         self.say(f"ETH {self.eth_usd:.0f} USD, selling into {self.sale_eth} ETH after {self.fee_pct}% fees")
         if self.provider == "vast":
             if not self.vast.available():
