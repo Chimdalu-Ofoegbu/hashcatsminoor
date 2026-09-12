@@ -70,11 +70,16 @@ ok "ssh key $KEY"
 
 # 6. vast.ai
 if [ "${PROVIDER:-vast}" = "vast" ]; then
+  # If you pasted VAST_API_KEY into .env, configure the CLI from it automatically.
+  if [ -n "${VAST_API_KEY:-}" ]; then
+    "$VASTAI" set api-key "$VAST_API_KEY" >/dev/null 2>&1 || true
+  fi
   if ! "$VASTAI" show user >/dev/null 2>&1; then
     todo "connect vast.ai (the GPU landlord):
        1) sign up at https://cloud.vast.ai and add ~\$10 credit
-       2) create an API key: Account -> API Keys
-       3) run: $VASTAI set api-key YOUR_KEY
+       2) create an API key: Account -> Keys -> API Keys
+       3) paste it into .env as a new line:  VAST_API_KEY=your_key_here
+          (or run: $VASTAI set api-key your_key_here)
        then re-run: bash run.sh"
   fi
   if ! "$VASTAI" show ssh-keys 2>/dev/null | grep -q "$(cut -d' ' -f2 "$KEY.pub")"; then
