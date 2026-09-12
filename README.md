@@ -6,6 +6,9 @@ without ever putting a wallet key on the rented machine.
 
 | Piece | Runs on | What it does |
 |---|---|---|
+| `autopilot.py` | you | Gate on live numbers, rent a box, build and self-test, mine within limits, destroy the rental |
+| `vast.py`, `remote.py` | you | vast.ai CLI wrapper; SSH upload and command runner (or this machine) |
+| `scripts/make_wallet.py`, `scripts/autoloop.sh` | you | Dedicated mining wallet; unattended retry loop |
 | `worth_it.py` | you | Reads the live contract and says whether renting pays, once or as a trend |
 | `coordinator.py` | you | Polls the chain, feeds jobs to the GPU host, verifies candidates, signs and submits mints |
 | `remote_agent.py` | GPU host | Standard-library only; one worker per GPU, reports candidates and hashrate |
@@ -21,7 +24,20 @@ Contract: `0xCA75DF55Cc9C476DB27a7375D1fc8E794cf80721`.
 
 ## Quick start
 
-Read [docs/cloud-runbook.md](docs/cloud-runbook.md). In short:
+Never done any of this? Read [docs/zero-to-mining.md](docs/zero-to-mining.md):
+accounts, wallet, funding, and then three commands.
+
+```sh
+python autopilot.py --dry-run          # free: live numbers and the box it would rent
+python autopilot.py --rehearse --yes   # about a dollar: rent, build, self-test, mine without signing
+python autopilot.py --yes              # mint within MAX_PRICE_ETH / MAX_SPEND_ETH / MAX_HOURS, then destroy the rental
+bash scripts/autoloop.sh               # unattended: retry every 30 minutes, spend only when the gate passes
+```
+
+`autopilot.py` rents through the vast.ai CLI (`PROVIDER=vast`), or uses a box
+you already have (`PROVIDER=ssh`) or this machine's GPU (`PROVIDER=local`).
+
+The manual route is in [docs/cloud-runbook.md](docs/cloud-runbook.md). In short:
 
 ```sh
 python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt

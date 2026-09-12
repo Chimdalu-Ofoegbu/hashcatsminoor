@@ -6,6 +6,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+if ! command -v python3 >/dev/null || ! command -v g++ >/dev/null || ! command -v make >/dev/null; then
+  echo "== installing python3, g++, make =="
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq && apt-get install -y -qq python3 build-essential >/dev/null
+fi
+
 echo "== GPUs =="
 nvidia-smi --query-gpu=index,name,compute_cap,memory.total --format=csv || { echo "nvidia-smi failed: no NVIDIA driver here"; exit 1; }
 command -v nvcc >/dev/null || { echo "nvcc not found: use a CUDA devel image or install the toolkit"; exit 1; }

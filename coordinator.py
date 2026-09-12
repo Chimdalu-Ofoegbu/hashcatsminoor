@@ -58,7 +58,8 @@ class Config:
         self.remote_python = kw.get("remote_python") or env("REMOTE_PYTHON", "python3")
         self.gpus = int(kw.get("gpus") if kw.get("gpus") is not None else env("GPUS", "0"))
         self.batch_log2 = kw.get("batch_log2")
-        self.local_cpu = bool(kw.get("local_cpu", False))
+        self.local = bool(kw.get("local", False) or kw.get("local_cpu", False))
+        self.cpu = bool(kw.get("cpu", False) or kw.get("local_cpu", False))
         self.worker = kw.get("worker")
         self.max_price_wei = int(float(kw.get("max_price_eth") or env("MAX_PRICE_ETH", "0")) * 1e18)
         self.target_mints = int(kw.get("target_mints") or env("TARGET_MINTS", "1"))
@@ -72,16 +73,19 @@ class Config:
         self.stats_seconds = float(kw.get("stats_seconds") or env("STATS_SECONDS", "10"))
 
     def agent_command(self):
-        batch = self.batch_log2 if self.batch_log2 is not None else (16 if self.local_cpu else 28)
-        if self.local_cpu:
-            worker = self.worker or str(HERE / "miner" / "cpu_worker")
-            return [sys.executable, str(HERE / "remote_agent.py"), "--worker", worker, "--cpu",
-                    "--gpus", str(self.gpus or 1), "--batch-log2", str(batch),
-                    "--stats-seconds", str(self.stats_seconds)]
+        batch = self.batch_log2 if self.batch_log2 is not None else (16 if self.cpu else 28)
+        if self.local:
+            worker = self.worker or str(HERE / "miner" / ("cpu_worker" if self.cpu else "worker"))
+            cmd = [sys.executable, str(HERE / "remote_agent.py"), "--worker", worker]
+            if self.cpu:
+                cmd.append("--cpu")
+            return cmd + ["--gpus", str(self.gpus or (1 if self.cpu else 0)), "--batch-log2", str(batch),
+                          "--stats-seconds", str(self.stats_seconds)]
         if not self.ssh_target:
             raise RuntimeError("set SSH_TARGET (user@host) or use --local-cpu")
+        worker = "./miner/cpu_worker --cpu" if self.cpu else "./miner/worker"
         remote = (f"cd {shlex.quote(self.remote_dir)} && {shlex.quote(self.remote_python)} -u remote_agent.py "
-                  f"--worker ./miner/worker --gpus {self.gpus} --batch-log2 {batch} "
+                  f"--worker {worker} --gpus {self.gpus} --batch-log2 {batch} "
                   f"--stats-seconds {self.stats_seconds}")
         cmd = ["ssh", "-p", str(self.ssh_port), "-o", "BatchMode=yes", "-o", "ServerAliveInterval=15"]
         cmd += shlex.split(self.ssh_opts)
@@ -370,8 +374,9 @@ class Coordinator:
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--live", action="store_true", help="sign and broadcast (spends ETH)")
-    p.add_argument("--local-cpu", action="store_true", help="run the CPU worker on this machine instead of SSH")
-    p.add_argument("--worker", default=None, help="worker binary for --local-cpu")
+    p.add_argument("--local", action="store_true", help="the GPU is on this machine: no SSH")
+    p.add_argument("--local-cpu", action="store_true", help="rehearse with the CPU worker on this machine")
+    p.add_argument("--worker", default=None, help="worker binary override")
     p.add_argument("--gpus", type=int, default=None)
     p.add_argument("--batch-log2", type=int, default=None)
     p.add_argument("--target-mints", type=int, default=None)
@@ -380,7 +385,7 @@ def main(argv=None):
     p.add_argument("--max-hours", type=float, default=None)
     p.add_argument("--state-dir", default=None)
     args = p.parse_args(argv)
-    cfg = Config(live=args.live, local_cpu=args.local_cpu, worker=args.worker, gpus=args.gpus,
+    cfg = Config(live=args.live, local=args.local, local_cpu=args.local_cpu, worker=args.worker, gpus=args.gpus,
                  batch_log2=args.batch_log2, target_mints=args.target_mints, max_price_eth=args.max_price_eth,
                  max_spend_eth=args.max_spend_eth, max_hours=args.max_hours, state_dir=args.state_dir)
     if cfg.max_price_wei <= 0:

@@ -32,6 +32,8 @@ GAS_LIMIT = 400_000
 def economics(snap, ghs, usd_per_hour, eth_usd, sale_eth, fee_pct, seconds_per_cat=PLAN_SECONDS_PER_CAT):
     if snap["target"] == 0:
         raise RuntimeError("target is zero: mint is closed or paused")
+    if ghs <= 0:
+        raise ValueError("hashrate must be positive")
     expected_hashes = hpow.expected_hashes(snap["target"])
     difficulty_bits = expected_hashes.bit_length() - 1
     hashrate = ghs * 1e9

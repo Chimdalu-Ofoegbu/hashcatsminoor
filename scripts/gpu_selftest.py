@@ -110,13 +110,13 @@ def main(argv=None):
         try:
             rate = check_worker(w, batch, args.seconds, rng)
             total += rate
-            print(f"worker {i}: OK  {rate / 1e9:.3f} GH/s")
+            print(f"worker {i}: OK  {rate / 1e9:.6f} GH/s")
         except Exception as exc:  # noqa: BLE001
             failed = True
             print(f"worker {i}: FAILED {exc}")
         finally:
             w.close()
-    print(f"total {total / 1e9:.3f} GH/s over {n} worker(s)")
+    print(f"total {total / 1e9:.6f} GH/s over {n} worker(s)")
     return 1 if failed else 0
 
 
