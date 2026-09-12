@@ -1,0 +1,5 @@
+requests>=2.32,<3
+eth-utils>=5,<7
+eth-abi>=5,<7
+eth-hash[pycryptodome]>=0.7,<1
+pytest>=8,<10
