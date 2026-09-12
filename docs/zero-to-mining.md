@@ -135,6 +135,22 @@ Load it into your shell every time you open a new terminal:
 set -a; . ./.env; set +a
 ```
 
+## The shortcut: one command
+
+If you would rather not follow every step by hand, run this from the repo after
+the clone in 1.2:
+
+```sh
+bash run.sh
+```
+
+It does steps 1.2 through 1.5 for you, checks each prerequisite, and stops at
+the first thing only you can do (fund the wallet, paste a vast.ai key), printing
+exactly what to paste. Re-run `bash run.sh` after each of those until it prints
+a dry run. Then `bash run.sh go` mines one batch and `bash run.sh loop` runs
+unattended. The rest of this document explains what those steps are doing and
+is worth reading once.
+
 ## Part 2. The three commands
 
 Run them in this order. Each one is a rehearsal for the next.

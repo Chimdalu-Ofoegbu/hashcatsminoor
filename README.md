@@ -24,14 +24,23 @@ Contract: `0xCA75DF55Cc9C476DB27a7375D1fc8E794cf80721`.
 
 ## Quick start
 
-Never done any of this? Read [docs/zero-to-mining.md](docs/zero-to-mining.md):
-accounts, wallet, funding, and then three commands.
+Never done any of this? One command does the whole setup and stops at the
+first thing only you can do (fund the wallet, paste a vast.ai key), telling
+you exactly what to paste. Re-run it until it starts mining:
+
+```sh
+bash run.sh          # advance setup; when ready, dry-run (rents nothing)
+bash run.sh go       # mine one batch (spends ETH, destroys the rental after)
+bash run.sh loop     # unattended: retry every 30 min, spend only when it pays
+```
+
+The long-form walkthrough is [docs/zero-to-mining.md](docs/zero-to-mining.md).
+Under the hood `run.sh` calls the autopilot, which you can also drive directly:
 
 ```sh
 python autopilot.py --dry-run          # free: live numbers and the box it would rent
 python autopilot.py --rehearse --yes   # about a dollar: rent, build, self-test, mine without signing
 python autopilot.py --yes              # mint within MAX_PRICE_ETH / MAX_SPEND_ETH / MAX_HOURS, then destroy the rental
-bash scripts/autoloop.sh               # unattended: retry every 30 minutes, spend only when the gate passes
 ```
 
 `autopilot.py` rents through the vast.ai CLI (`PROVIDER=vast`), or uses a box

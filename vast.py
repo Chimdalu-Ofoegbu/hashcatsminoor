@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -42,7 +43,7 @@ class VastCLI:
         self.binary = binary
         self.dry_run = dry_run
         self.log = log
-        self.api_key = api_key
+        self.api_key = api_key or os.environ.get("VAST_API_KEY") or None
 
     def available(self) -> bool:
         return shutil.which(self.binary) is not None

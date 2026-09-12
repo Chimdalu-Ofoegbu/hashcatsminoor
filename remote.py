@@ -5,6 +5,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -48,9 +49,24 @@ class SshRemote(Remote):
     def target(self) -> str:
         return f"{self.user}@{self.host}"
 
+    @staticmethod
+    def proxy_opts() -> list[str]:
+        """Tunnel SSH through an HTTP CONNECT proxy when one is configured.
+
+        Set SSH_VIA_PROXY=0 to disable, or SSH_PROXY_COMMAND to use your own."""
+        custom = os.environ.get("SSH_PROXY_COMMAND")
+        if custom:
+            return ["-o", f"ProxyCommand={custom}"]
+        if os.environ.get("SSH_VIA_PROXY", "1") == "0":
+            return []
+        if not (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")):
+            return []
+        helper = Path(__file__).resolve().parent / "scripts" / "proxy_connect.py"
+        return ["-o", f"ProxyCommand={shlex.quote(sys.executable)} {shlex.quote(str(helper))} %h %p"]
+
     def opts(self) -> list[str]:
         opts = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "ServerAliveInterval=15",
-                "-o", "ConnectTimeout=20"]
+                "-o", "ConnectTimeout=20"] + self.proxy_opts()
         if self.key_file:
             opts += ["-i", self.key_file]
         return opts + shlex.split(self.extra_opts)
@@ -88,8 +104,9 @@ class SshRemote(Remote):
         extra = self.extra_opts
         if self.key_file:
             extra = f"-i {shlex.quote(self.key_file)} " + extra
+        proxy = " ".join(shlex.quote(o) for o in self.proxy_opts())
         return {"ssh_target": self.target, "ssh_port": self.port,
-                "ssh_opts": ("-o StrictHostKeyChecking=accept-new " + extra).strip(), "local": False}
+                "ssh_opts": f"-o StrictHostKeyChecking=accept-new {proxy} {extra}".strip(), "local": False}
 
 
 class LocalRemote(Remote):
